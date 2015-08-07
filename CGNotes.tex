@@ -1,0 +1,227 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{geometry}
+\usepackage[usenames,dvipsnames,svgnames,table]{xcolor}
+%\usepackage{color}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{commath}
+
+\geometry{textwidth=6.5in, textheight=9.0in,
+  marginparsep=7pt, marginparwidth=.6in}
+\setlength{\parindent}{0in}
+\setlength{\parskip}{0.08in}
+
+\newcommand{\red}[1]{\textcolor{red}{#1}}
+\newcommand{\blue}[1]{\textcolor{blue}{#1}}
+\newcommand*{\annot}[1]{\tag*{\footnotesize{\textcolor{gray}{#1}}}}
+
+\let\Re\undefined
+\DeclareMathOperator{\Re}{Re}
+\let\Im\undefined
+\DeclareMathOperator{\Im}{Im}
+
+\title{Color Gradients Notes}
+\author{Josh Meyers}
+\date{August 2015}
+
+\begin{document}
+
+\section{Introduction}
+
+The goal is to create a \textsc{GalSim} GSObject with realistic color gradients using high
+resolution multiband images (most likely from HST) as input.  This is done by constructing a sum of
+two or more separable chromatic surface brightness profiles, each with a particular asserted SED.
+I.e., the model for the preconvolution surface brightness profile is
+
+\begin{equation}
+    \sum_j S_j(\lambda) a_j(\vec{x}),
+\end{equation}
+
+where $S_j(\lambda)$ is the $j$th SED asserted as part of the decomposition, and $a_j(\vec{x})$ is
+the $j$th spatial component of the separable chromatic profile.
+
+The required set of inputs is:
+
+\begin{itemize}
+
+\item Two or more HST images of the same galaxy in different filters, $I_i(\vec{x})$.
+
+\item The 2D noise covariance function (it should really be called a covariance function, not a
+correlation function :)) for each image, $\xi_i(\vec{x})$.  If the noise is uncorrelated, then this
+could be simply the noise variance.
+
+\item The chromatic HST PSF, $\Pi(\vec{x}, \lambda)$ (we'll reserve the symbol $P(\vec{k})$ for the
+noise power spectrum).
+
+\item The HST throughput for each image filter, $T_i(\lambda)$.
+
+\item Two or more SEDs to use when constructing the resulting GSObject, $S_j(\lambda)$.
+
+\end{itemize}
+
+The model for the observed images is:
+
+\begin{equation}
+  I_i(\vec{x}) = \int T_i(\lambda) \Pi(\vec{x}, \lambda) \otimes \sum_j S_j(\lambda) a_j(\vec{x}) \dif{\lambda}
+\end{equation}
+
+which after transforming to Fourier space and manipulating the ordering of some sums and integrals,
+etc. becomes:
+
+\begin{equation}
+  \label{eqn:solveme}
+  I_i(\vec{k}) = \sum_j \Pi^\mathrm{eff}_{ij}(\vec{k}) a_j(\vec{k})
+\end{equation}
+
+where
+
+\begin{equation}
+  \Pi^\mathrm{eff}_{ij}(\vec{k}) = \int T_i(\lambda) \Pi(\vec{k}, \lambda) S_j(\lambda) \dif{\lambda}.
+\end{equation}
+
+The crux of the problem is to solve for the (complex-valued) $a_j(\vec{k})$ and to propagate the
+noise $\xi$.
+
+\section{Solving for $a_j(\vec{k})$}
+
+There are several possible ways to estimate the required $a_j(\vec{k})$.
+
+\subsection{No noise}
+
+If we ignore the pixel noise entirely, then Equation \ref{eqn:solveme} can be solved directly as a
+linear system of equations.
+
+If the number of asserted SEDs $N_j$ is larger than the number of input images $N_i$, then the
+system of equations is underdetermined.  While in principle this could still be solvable using some
+prior constraints, for now, we'll just ignore this possibility.
+
+If $N_j = N_i$, then we can exactly solve Equation \ref{eqn:solveme} using matrix inversion for each
+Fourier mode $\vec{k}$:
+
+\begin{equation}
+  a_j(\vec{k}) = (\Pi^\mathrm{eff}_{ij})^{-1} I_i(\vec{k}).
+\end{equation}
+
+The \textsc{numpy.linalg.solve} function can efficiently perform the required computation in this
+case, and can even parallelize over each of the $\vec{k}$ modes.
+
+If $N_j$ is less than $N_i$, then we can no longer solve the system of equations exactly, but we can
+still get a "least-squares" solution for each $\vec{k}$ by minimizing
+
+\begin{equation}
+  \label{eqn:lstsq}
+  \left|\sum_i\left[I_i(\vec{k}) - \sum_j \Pi^\mathrm{eff}_{ij}(\vec{k}) a_j(\vec{k})\right]\right|^2.
+\end{equation}
+
+The \textsc{numpy.linalg.lstsq} function can perform the required math in this case, though it can
+no longer parallelize over Fourier modes; an extra python loop is required.
+
+\subsection{Uncorrelated noise}
+
+Uncorrelated Gaussian pixel noise in the $i$th image is completely described by its variance
+$\sigma^2_i$.  In Fourier space, the variance of each mode is still $\sigma^2_i$ (up to factors of
+$N_\mathrm{pix}$ and $2 \pi$ anyway, will work those out later) and the different $\vec{k}$ modes
+are also uncorrelated.  We can therefore write down a likelihood for $a_j(\vec{k})$ as
+
+\begin{equation}
+  \chi^2 = -2 \log \mathcal{L} = \frac{(I_i - \sum_j \Pi^\mathrm{eff}_{ij} a_j)(I_i - \sum_j \Pi^\mathrm{eff}_{ij} a_j)^*}{\sigma_i^2},
+\end{equation}
+
+where the $^*$ indicates complex conjugation.  A little algebra transforms this into
+
+\begin{equation}
+  \label{eqn:like}
+  -2 \log \mathcal{L} = \left|\sum_i\left[\frac{I_i(\vec{k})}{\sigma_i} - \sum_j \frac{\Pi^\mathrm{eff}_{ij}(\vec{k})}{\sigma_i} a_j(\vec{k})\right]\right|^2.
+\end{equation}
+
+which has exactly the same form as Equation \ref{eqn:lstsq} and can thus also be minimized using
+\textsc{numpy.linalg.lstsq}.
+
+\subsection{Correlated noise}
+
+If the noise covariance function $\xi(\vec{x})$ is non-zero away from the origin, then the variance
+of different Fourier modes is not constant, but proportional to the noise power spectrum
+
+\begin{equation}
+  P(\vec{k}) = \int \xi(\vec{x}) e^{-i \vec{k}\cdot\vec{x}}.
+\end{equation}
+
+Due to assumed translation invariance of the noise (though note that we do not assume isotropy), the
+covariance of different Fourier modes is zero.  More explicitly, if the noise in mode $\vec{k_i}$ is
+$\tilde\eta(\vec{k_i})$, then
+
+\begin{equation}
+  \langle\tilde\eta(\vec{k_i})\tilde\eta(\vec{k_j})\rangle = (2 \pi)^2 \delta(\vec{k_i} - \vec{k_j})P(\vec{k_i}),
+\end{equation}
+
+where the angle brackets average over an ensemble of noise realizations.  Once the noise power
+spectrum has been computed, therefore, the only change to the the likelihood in Equation
+\ref{eqn:like} is that the noise now depends on the particular Fourier mode in question:
+
+\begin{equation}
+  \label{eqn:likecorr}
+  -2 \log \mathcal{L} = \left|\sum_i\left[\frac{I_i(\vec{k})}{2\pi\sqrt{P(\vec{k})}} - \sum_j \frac{\Pi^\mathrm{eff}_{ij}(\vec{k})}{2\pi\sqrt{P(\vec{k})}} a_j(\vec{k})\right]\right|^2.
+\end{equation}
+
+Since we are solving for $a_j(\vec{k})$ independently for each Fourier mode $\vec{k}$ anyway,
+handling correlated noise only requires a small amount of additional bookkeeping, but no essential
+algorithmic differences compared to handling uncorrelated noise.
+
+On the other hand, for propagating errors, it may be beneficial to use the weighted linear least
+squares (\textsc{WLS}) function from the \textsc{statsmodel.api} package, which will propagate
+errors and return not only the $N_j$ minimizing $a_j$'s for each Fourier mode, but also an $N_j
+\times N_j$ covariance matrix for these $a_j$'s.
+
+\section{Propagating the noise covariance}
+
+At this point, we have the data (the $a_j(\vec{k})$) necessary to represent a chromatic surface
+brightness profile in Fourier space as
+
+\begin{equation}
+  \sum_j S_j(\lambda) a_j(\vec{k}).
+\end{equation}
+
+The noise in each $\vec{k}$ mode is independent, but for a given mode, the noise is different, and
+correlated among the different SED components $j$.  If the noise were uncorrelated among the $j$,
+then it could be completely specified by a power spectrum for each $j$ $P_j(\vec{k})$.  To account
+for the correlation, however, we need to keep track of a covariance (as opposed to just a variance,
+which is what the power spectrum tracks) of each mode $k$, which is returned by
+\textsc{statsmodel.api.WLS}.
+
+\begin{equation}
+  \Sigma_{ij}(\vec{k}) = \langle\tilde\eta(\vec{k_i})\tilde\eta(\vec{k_j})\rangle
+\end{equation}
+
+The model for creating an output image $O(\vec{k})$, convolving by an output chromatic PSF
+$\Pi^\mathrm{out}(\vec{k}, \lambda)$ and drawing through an output filter with transmission
+$T^\mathrm{out}(\lambda)$, is
+
+\begin{equation}
+  O(\vec{k}) = \int \Pi^\mathrm{out}(\vec{k}, \lambda) T^\mathrm{out}(\lambda) \sum_j S_j(\lambda) a_j(\vec{k}) \dif{\lambda}
+\end{equation}
+
+which after some rearrangement and algebra yields
+
+\begin{equation}
+  O(\vec{k}) = \sum_j \Pi_j^\mathrm{out, eff}(\vec{k}) a_j(\vec{k})
+\end{equation}
+
+where
+
+\begin{equation}
+  \Pi_j^\mathrm{out, eff}(\vec{k}) = \int \Pi^\mathrm{out}(\vec{k}, \lambda) T^\mathrm{out}(\lambda) S_j(\lambda)\dif{\lambda}.
+\end{equation}
+
+We can then propagate the covariance spectrum $\Sigma_{ij}(\vec{k})$ into the final output
+noise power spectrum $P(\vec{k})$ as
+
+\begin{equation}
+  P^\mathrm{out}(\vec{k}) = \sum_{ij} \Pi_i^\mathrm{out, eff}(\vec{k}) \Sigma_{ij}(\vec{k}) \Pi_j^\mathrm{out, eff}(\vec{k}).
+\end{equation}
+
+(Hopefully this actually works.  I'm a bit concerned that the $\Pi(\vec{k})$ are complex, and that
+$\Sigma_{ij}(\vec{k})$ will need to track covariance between the real and imaginary components of
+the $a_j(\vec{k})$ too.)
+
+\end{document}
