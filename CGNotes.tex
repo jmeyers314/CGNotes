@@ -50,7 +50,7 @@ The required set of inputs is:
 labels the different filters.
 
 \item The 2D noise covariance function for each image, $\xi_i(\Delta\vec{x})$.  If the noise is
-uncorrelated, then this could be simply the noise variance ($\xi_i(\Delta\vec{x}) = \sigma^2_i$).
+uncorrelated, then this could be simply the noise variance ($\xi_i(\Delta\vec{x}=0) = \sigma^2_i$, $\xi_i(\Delta\vec{x}\ne0)=0$).
 
 \item The chromatic HST PSF, $\Pi(\vec{x}, \lambda)$.
 
@@ -71,7 +71,8 @@ The model for the observed images is:
 where $\eta(\vec{x})$ indicates (potentially spatially correlated) Gaussian noise and the $\otimes$
 symbol indicates (spatial) convolution.  The noise $\eta(\vec{x})$ is related to the noise
 covariance function via $\langle\eta(\vec{x}_l) \eta(\vec{x}_m)\rangle = \xi(\vec{x}_l -
-\vec{x}_m)$, where angle brackets indicate averaging over realizations of the noise.
+\vec{x}_m)$, where angle brackets indicate averaging over realizations of the noise.  Note that we
+also assume that $\xi_i$ is even ($\xi_i(\Delta\vec{x}) = \xi_i(-\Delta\vec{x})$).
 
 Indicating the Fourier transform of the real-space quantity $g(\vec{x})$ with $\tilde{g}(\vec{k})$,
 the model in Fourier space is
@@ -84,7 +85,7 @@ the model in Fourier space is
     &=  \sum_j \tilde{\Pi}^\mathrm{eff}_{ij}(\vec{k}) \tilde{a}_j(\vec{k}) + \tilde{\eta}(\vec{k}),
 \end{align}
 
-where
+where the effective PSF for the $i$th filter and $j$th SED is
 
 \begin{equation}
   \tilde{\Pi}^\mathrm{eff}_{ij}(\vec{k}) = \int T_i(\lambda) S_j(\lambda) \tilde{\Pi}(\vec{k}, \lambda) \dif{\lambda}.
@@ -132,7 +133,7 @@ returns an error estimate as part of its results, so we recommend the use of
 
 Stationary, uncorrelated Gaussian pixel noise in the $i$th image is completely described by its
 variance $\sigma^2_i$.  In Fourier space, the variance of each mode is still $\sigma^2_i$ (up to
-factors of $N_\mathrm{pix}$ and $2 \pi$ anyway, will work those out later) and the different
+factors of $N_\mathrm{pix}$ and $2 \pi$ at least, will work those out later) and the different
 $\vec{k}$ modes are also uncorrelated.  We can therefore write down a likelihood for
 $\tilde{a}_j(\vec{k})$ as
 
@@ -148,7 +149,7 @@ This is a \textit{weighted} least-squares problem, and can be solved using the p
 
 If the noise covariance function for a particular image $\xi_i(\vec{\Delta x})$ is non-zero away
 from the origin, then the variance of different Fourier modes is not constant, but proportional to
-the noise power spectrum
+the noise power spectrum, which is the Fourier transform of the noise covariance function:
 
 \begin{equation}
   P_i(\vec{k}) = \int \xi_i(\Delta \vec{x}) e^{-i \vec{k}\cdot\Delta\vec{x}}.
@@ -185,23 +186,23 @@ brightness profile in Fourier space as
 
 The uncertainty in each $\tilde{a}_j(\vec{k})$ is uncorrelated from one $\vec{k}$ to the next (since
 we defined independent likelihoods for each $\vec{k}$), but does, in general, possess correlations
-between the different SED components $j$ and $k$ for a given $\vec{k}$ (note I'm abusing notation a
-bit; $|\vec{k}| \ne k$!)  Using $\Sigma_{jk}(\vec{k})$ to represent these covariances, we have
+between the different SED components $j$ and $\prime{j}$ for a given $\vec{k}$.  Using
+$\Sigma_{jj^\prime}(\vec{k})$ to represent these covariances, we have
 
 \begin{equation}
-    \langle\tilde{a}_j(\vec{k}_l)\tilde{a}^*_k(\vec{k}_m)\rangle = \delta(\vec{k}_l - \vec{k}_m)\Sigma_{jk}(\vec{k_l}).
+    \langle\delta\tilde{a}_j(\vec{k}_l)\delta\tilde{a}^*_{j^\prime}(\vec{k}_m)\rangle = \delta(\vec{k}_l - \vec{k}_m)\Sigma_{jj^\prime}(\vec{k_l}).
 \end{equation}
 
-Fortunately, $\Sigma_{jk}(\vec{k})$ is one of the outputs from \textsc{statsmodel.api.WLS}.
+Fortunately, $\Sigma_{jj^\prime}(\vec{k})$ is one of the outputs from \textsc{statsmodel.api.WLS}.
 \footnote{Actually, \textsc{statsmodel.api.WLS} doesn't quite do the right thing for complex-valued
 weighted least squares problems; in several places it uses a matrix transpose where a matrix
 conjugate transpose should actually be used.  An $N_d$ complex-valued problem can be reformulated as
 a $2 N_d$ real-valued problem, however, which lets \textsc{statsmodels.api.WLS} still be useful with
 a bit of extra work translating the problem.}
 
-This $\Sigma_{ij}(\vec{k})$ can then be transformed alongside the $\tilde{a}_j(\vec{k})$ to effect
-shears, rotations, dilations, etc., the same way that noise is transformed in existing
-\textsc{GalSim} routines (at least, I think this is how \textsc{GalSim} currently works).
+This $\Sigma_{jj^\prime}(\vec{k})$ can then be transformed alongside the $\tilde{a}_j(\vec{k})$ to
+effect shears, rotations, dilations, etc., the same way that noise is transformed in existing
+\textsc{GalSim} routines.
 
 Finally, the model for creating a (Fourier-domain) output image $\tilde{O}(\vec{k})$, convolving by
 an output chromatic PSF $\tilde{\Pi}^\mathrm{out}(\vec{k}, \lambda)$ and drawing through an output
@@ -214,18 +215,21 @@ filter with transmission $T^\mathrm{out}(\lambda)$, is
     &= \sum_j \tilde{\Pi}_j^\mathrm{out, eff}(\vec{k}) \tilde{a}_j(\vec{k})
 \end{align}
 
-where
+where the effective PSF for the $j$th component of the output image is
 
 \begin{equation}
   \Pi_j^\mathrm{out, eff}(\vec{k}) = \int \Pi^\mathrm{out}(\vec{k}, \lambda) T^\mathrm{out}(\lambda) S_j(\lambda)\dif{\lambda}.
 \end{equation}
 
-Propagating the (potentially transformed) covariance spectrum $\Sigma_{ij}(\vec{k})$ into the final
-output noise power spectrum $P^\mathrm{out}(\vec{k})$ then follows the normal propagation of errors
-formula:
+Propagating the (potentially transformed) covariance spectrum $\Sigma_{jj^\prime}(\vec{k})$ into the
+final output noise power spectrum $P^\mathrm{out}(\vec{k})$ then follows the normal propagation of
+errors formula:
 
 \begin{equation}
-  P^\mathrm{out}(\vec{k}) = \sum_{ij} \Pi_i^\mathrm{out, eff}(\vec{k}) \Sigma_{ij}(\vec{k}) \Pi_j^\mathrm{out, eff}(\vec{k}).
+  P^\mathrm{out}(\vec{k}) = \sum_{jj^\prime} \Pi_j^\mathrm{out, eff}(\vec{k}) \Sigma_{jj^\prime}(\vec{k}) \Pi_{j^\prime}^\mathrm{out, eff}(\vec{k}).
 \end{equation}
+
+This power spectrum can then be used in the existing correlated noise whitening and symmetrizing
+GalSim routines.
 
 \end{document}
