@@ -160,7 +160,7 @@ covariance of different Fourier modes vanishes.  More explicitly, if the noise i
 $\vec{k_l}$ is $\tilde\eta_i(\vec{k_l})$, then
 
 \begin{equation}
-  \langle\tilde\eta_i(\vec{k_l})\tilde\eta_i^*(\vec{k_m})\rangle = (2 \pi)^2 \delta(\vec{k_l} - \vec{k_m})P_i(\vec{k_l}).
+  \langle\tilde\eta_i^*(\vec{k_l})\tilde\eta_i(\vec{k_m})\rangle = (2 \pi)^2 \delta(\vec{k_l} - \vec{k_m})P_i(\vec{k_l}).
 \end{equation}
 
 Once the noise power spectrum has been computed, therefore, the only change to the likelihood in
@@ -186,11 +186,11 @@ brightness profile in Fourier space as
 
 The uncertainty in each $\tilde{a}_j(\vec{k})$ is uncorrelated from one $\vec{k}$ to the next (since
 we defined independent likelihoods for each $\vec{k}$), but does, in general, possess correlations
-between the different SED components $j$ and $\prime{j}$ for a given $\vec{k}$.  Using
+between the different SED components $j$ and $j^\prime$ for a given $\vec{k}$.  Using
 $\Sigma_{jj^\prime}(\vec{k})$ to represent these covariances, we have
 
 \begin{equation}
-    \langle\delta\tilde{a}_j(\vec{k}_l)\delta\tilde{a}^*_{j^\prime}(\vec{k}_m)\rangle = \delta(\vec{k}_l - \vec{k}_m)\Sigma_{jj^\prime}(\vec{k_l}).
+    \langle\delta\tilde{a}^*_j(\vec{k}_l)\delta\tilde{a}_{j^\prime}(\vec{k}_m)\rangle = \delta(\vec{k}_l - \vec{k}_m)\Sigma_{jj^\prime}(\vec{k_l}).
 \end{equation}
 
 Fortunately, $\Sigma_{jj^\prime}(\vec{k})$ is one of the outputs from \textsc{statsmodel.api.WLS}.
@@ -226,7 +226,7 @@ final output noise power spectrum $P^\mathrm{out}(\vec{k})$ then follows the nor
 errors formula:
 
 \begin{equation}
-  P^\mathrm{out}(\vec{k}) = \sum_{jj^\prime} \Pi_j^\mathrm{out, eff}(\vec{k}) \Sigma_{jj^\prime}(\vec{k}) \Pi_{j^\prime}^\mathrm{out, eff}(\vec{k}).
+  P^\mathrm{out}(\vec{k}) = \sum_{jj^\prime} \Pi_j^\mathrm{out, eff, *}(\vec{k}) \Sigma_{jj^\prime}(\vec{k}) \Pi_{j^\prime}^\mathrm{out, eff}(\vec{k}).
 \end{equation}
 
 This power spectrum can then be used in the existing correlated noise whitening and symmetrizing
