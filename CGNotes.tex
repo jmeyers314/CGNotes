@@ -196,9 +196,9 @@ $\Sigma_{jj^\prime}(\vec{k})$ to represent these covariances, we have
 Fortunately, $\Sigma_{jj^\prime}(\vec{k})$ is one of the outputs from \textsc{statsmodel.api.WLS}.
 \footnote{Actually, \textsc{statsmodel.api.WLS} doesn't quite do the right thing for complex-valued
 weighted least squares problems; in several places it uses a matrix transpose where a matrix
-conjugate transpose should actually be used.  An $N_d$ complex-valued problem can be reformulated as
-a $2 N_d$ real-valued problem, however, which lets \textsc{statsmodels.api.WLS} still be useful with
-a bit of extra work translating the problem.}
+conjugate transpose should actually be used.  An $N_d$ complex-valued matrix problem can be
+reformulated as a $2 N_d$ real-valued matrix problem, however, which lets
+\textsc{statsmodels.api.WLS} still be useful with a bit of extra work translating the problem.}
 
 This $\Sigma_{jj^\prime}(\vec{k})$ can then be transformed alongside the $\tilde{a}_j(\vec{k})$ to
 effect shears, rotations, dilations, etc., the same way that noise is transformed in existing
@@ -218,7 +218,7 @@ filter with transmission $T^\mathrm{out}(\lambda)$, is
 where the effective PSF for the $j$th component of the output image is
 
 \begin{equation}
-  \Pi_j^\mathrm{out, eff}(\vec{k}) = \int \Pi^\mathrm{out}(\vec{k}, \lambda) T^\mathrm{out}(\lambda) S_j(\lambda)\dif{\lambda}.
+  \tilde{\Pi}_j^\mathrm{out, eff}(\vec{k}) = \int \tilde{\Pi}^\mathrm{out}(\vec{k}, \lambda) T^\mathrm{out}(\lambda) S_j(\lambda)\dif{\lambda}.
 \end{equation}
 
 Propagating the (potentially transformed) covariance spectrum $\Sigma_{jj^\prime}(\vec{k})$ into the
@@ -226,7 +226,7 @@ final output noise power spectrum $P^\mathrm{out}(\vec{k})$ then follows the nor
 errors formula:
 
 \begin{equation}
-  P^\mathrm{out}(\vec{k}) = \sum_{jj^\prime} \Pi_j^\mathrm{out, eff, *}(\vec{k}) \Sigma_{jj^\prime}(\vec{k}) \Pi_{j^\prime}^\mathrm{out, eff}(\vec{k}).
+  P^\mathrm{out}(\vec{k}) = \sum_{jj^\prime} \tilde{\Pi}_j^\mathrm{out, eff, *}(\vec{k}) \Sigma_{jj^\prime}(\vec{k}) \tilde{\Pi}_{j^\prime}^\mathrm{out, eff}(\vec{k}).
 \end{equation}
 
 This power spectrum can then be used in the existing correlated noise whitening and symmetrizing
