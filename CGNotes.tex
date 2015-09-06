@@ -64,15 +64,15 @@ The model for the observed images is:
 
 \begin{align}
     I_i(\vec{x})
-    &= \int T_i(\lambda) \left[\Pi(\vec{x}, \lambda) \otimes f(\vec{x}, \lambda)\right] \dif{\lambda} + \eta(\vec{x}) \\
-    &= \int T_i(\lambda) \sum_j S_j(\lambda) \left[\Pi(\vec{x}, \lambda) \otimes a_j(\vec{x})\right] \dif{\lambda} + \eta(\vec{x})
+    &= \int T_i(\lambda) \left[\Pi(\vec{x}, \lambda) \otimes f(\vec{x}, \lambda)\right] \dif{\lambda} + \eta_i(\vec{x}) \\
+    &= \int T_i(\lambda) \sum_j S_j(\lambda) \left[\Pi(\vec{x}, \lambda) \otimes a_j(\vec{x})\right] \dif{\lambda} + \eta_i(\vec{x})
 \end{align}
 
-where $\eta(\vec{x})$ indicates (potentially spatially correlated) Gaussian noise and the $\otimes$
-symbol indicates (spatial) convolution.  The noise $\eta(\vec{x})$ is related to the noise
-covariance function via $\langle\eta(\vec{x}_l) \eta(\vec{x}_m)\rangle = \xi(\vec{x}_l -
+where $\eta_i(\vec{x})$ indicates (potentially spatially correlated) Gaussian noise in image $i$ and
+the $\otimes$ symbol indicates (spatial) convolution.  The noise $\eta_i(\vec{x})$ is related to the
+noise covariance function via $\langle\eta_i(\vec{x}_l) \eta_i(\vec{x}_m)\rangle = \xi_i(\vec{x}_l -
 \vec{x}_m)$, where angle brackets indicate averaging over realizations of the noise.  Note that we
-also assume that $\xi_i$ is even ($\xi_i(\Delta\vec{x}) = \xi_i(-\Delta\vec{x})$).
+also assume that $\xi_i$ is even: $\xi_i(\Delta\vec{x}) = \xi_i(-\Delta\vec{x})$.
 
 Indicating the Fourier transform of the real-space quantity $g(\vec{x})$ with $\tilde{g}(\vec{k})$,
 the model in Fourier space is
