@@ -5,6 +5,7 @@
 %\usepackage{color}
 \usepackage{graphicx}
 \usepackage{amsmath}
+\usepackage{mathabx}
 \usepackage{commath}
 
 \geometry{textwidth=6.5in, textheight=9.0in,
@@ -64,16 +65,18 @@ The model for the observed images is:
 
 \begin{align}
     I_i(\vec{x})
-    &= \int T_i(\lambda) \left[\Pi(\vec{x}, \lambda) \otimes f(\vec{x}, \lambda)\right] \dif{\lambda} + \eta_i(\vec{x}) \\
-    &= \int T_i(\lambda) \sum_j S_j(\lambda) \left[\Pi(\vec{x}, \lambda) \otimes a_j(\vec{x})\right] \dif{\lambda} + \eta_i(\vec{x})
+    &= \int T_i(\lambda) \left[\Pi(\vec{x}, \lambda) \Asterisk f(\vec{x}, \lambda)\right] \dif{\lambda} + \eta_i(\vec{x}) \\
+    &= \int T_i(\lambda) \sum_j S_j(\lambda) \left[\Pi(\vec{x}, \lambda) \Asterisk a_j(\vec{x})\right] \dif{\lambda} + \eta_i(\vec{x})
 \end{align}
 
 where $\eta_i(\vec{x})$ indicates (potentially spatially correlated) Gaussian noise in image $i$ and
-the $\otimes$ symbol indicates (spatial) convolution.  The noise $\eta_i(\vec{x})$ is related to the
-noise covariance function via $\langle\eta_i(\vec{x}_l) \eta_i(\vec{x}_m)\rangle = \xi_i(\vec{x}_l -
-\vec{x}_m)$, where angle brackets indicate averaging over realizations of the noise.  Note that we
-also assume that $\xi_i$ is even: $\xi_i(\Delta\vec{x}) = \xi_i(-\Delta\vec{x})$.
+the $\Asterisk$ symbol indicates (spatial) convolution.  The noise $\eta_i(\vec{x})$ is related to
+the noise covariance function via $\langle\eta_i(\vec{x}_l) \eta_i(\vec{x}_m)\rangle =
+\xi_i(\vec{x}_l - \vec{x}_m)$, where angle brackets indicate averaging over realizations of the
+noise.  Note that we also assume that $\xi_i$ is even: $\xi_i(\Delta\vec{x}) =
+\xi_i(-\Delta\vec{x})$.
 
+The convolution is easier to work with in Fourier space where it becomes a mode-by-mode product.
 Indicating the Fourier transform of the real-space quantity $g(\vec{x})$ with $\tilde{g}(\vec{k})$,
 the model in Fourier space is
 
@@ -116,7 +119,7 @@ Fourier mode $\vec{k}$:
 \end{equation}
 
 If there are more images than spectra ($N_i > N_j$), then the system of equations is overdetermined
-and no longer has an exact solution.  Instead, there is a (usually unique) ``least-squares''
+and no longer has an exact solution.  Instead, there is a (usually) unique ``least-squares''
 solution for each $\vec{k}$ obtained by minimizing
 
 \begin{equation}
@@ -124,26 +127,26 @@ solution for each $\vec{k}$ obtained by minimizing
   \sum_i\left|\tilde{I}_i(\vec{k}) - \sum_j \tilde{\Pi}^\mathrm{eff}_{ij}(\vec{k}) \tilde{a}_j(\vec{k})\right|^2.
 \end{equation}
 
-For the above scenarios, the \textsc{numpy} functions \textsc{linalg.solve} and
-\textsc{linalg.lstsq} can be used to find the $\tilde{a}_j$.  However, neither of these functions
-returns an error estimate as part of its results, so we recommend the use of
-\textsc{statsmodels.api.WLS} instead.
-
 \subsection{Uncorrelated noise}
 
 Stationary, uncorrelated Gaussian pixel noise in the $i$th image is completely described by its
-variance $\sigma^2_i$.  In Fourier space, the variance of each mode is still $\sigma^2_i$ (up to
-factors of $N_\mathrm{pix}$ and $2 \pi$ at least, will work those out later) and the different
-$\vec{k}$ modes are also uncorrelated.  We can therefore write down a likelihood for
-$\tilde{a}_j(\vec{k})$ as
+variance $\sigma^2_i$.  In Fourier space, the variance of each mode is independent of $\vec{k}$ and
+proportional to $\sigma^2_i$, where the constant of proportionality depends on the particular
+Fourier conventions employed.  We can therefore write down a likelihood for $\tilde{a}_j(\vec{k})$
+as
 
 \begin{equation}
     \label{eqn:like}
     \chi^2(\vec{k}) = -2 \log \mathcal{L}(\vec{k}) = \sum_i\frac{1}{\sigma_i^2}\left|\tilde{I}_i(\vec{k}) - \sum_j \tilde{\Pi}^\mathrm{eff}_{ij}(\vec{k}) \tilde{a}_j(\vec{k})\right|^2.
 \end{equation}
 
-This is a \textit{weighted} least-squares problem, and can be solved using the python
-\textsc{statsmodels.api.WLS} function.
+This is a \textit{weighted} least-squares problem.  Note that the weights only matter for
+determining the Fourier coefficients $\tilde{a}_j(\vec{k})$ if the number of input images is greater
+than the number of asserted spectra.  When these quantities are equal, it is always possible to find
+$\tilde{a}_j(\vec{k})$ such that $\tilde{I}_i(\vec{k}) = \sum_j
+\tilde{\Pi}^\mathrm{eff}_{ij}(\vec{k}) \tilde{a}_j(\vec{k})$.  The weights do still matter in this
+case if we're interested in propagating the noise, however.
+
 
 \subsection{Correlated noise}
 
@@ -160,7 +163,7 @@ covariance of different Fourier modes vanishes.  More explicitly, if the noise i
 $\vec{k_l}$ is $\tilde\eta_i(\vec{k_l})$, then
 
 \begin{equation}
-  \langle\tilde\eta_i^*(\vec{k_l})\tilde\eta_i(\vec{k_m})\rangle = (2 \pi)^2 \delta(\vec{k_l} - \vec{k_m})P_i(\vec{k_l}).
+  \langle\tilde\eta_i^*(\vec{k_l})\tilde\eta_i(\vec{k_m})\rangle = \delta(\vec{k_l} - \vec{k_m})P_i(\vec{k_l}).
 \end{equation}
 
 Once the noise power spectrum has been computed, therefore, the only change to the likelihood in
@@ -169,7 +172,7 @@ question:
 
 \begin{equation}
     \label{eqn:likecorr}
-    -2 \log \mathcal{L}(\vec{k}) = \sum_i\frac{1}{2 \pi P_i(\vec{k})}\left|\tilde{I}_i(\vec{k}) - \sum_j \tilde{\Pi}^\mathrm{eff}_{ij}(\vec{k}) \tilde{a}_j(\vec{k})\right|^2.
+    -2 \log \mathcal{L}(\vec{k}) = \sum_i\frac{1}{P_i(\vec{k})}\left|\tilde{I}_i(\vec{k}) - \sum_j \tilde{\Pi}^\mathrm{eff}_{ij}(\vec{k}) \tilde{a}_j(\vec{k})\right|^2.
 \end{equation}
 
 This is essentially the same weighted least squares problem as in the uncorrelated noise case -- the
@@ -193,23 +196,19 @@ $\Sigma_{jj^\prime}(\vec{k})$ to represent these covariances, we have
     \langle\delta\tilde{a}^*_j(\vec{k}_l)\delta\tilde{a}_{j^\prime}(\vec{k}_m)\rangle = \delta(\vec{k}_l - \vec{k}_m)\Sigma_{jj^\prime}(\vec{k_l}).
 \end{equation}
 
-Fortunately, $\Sigma_{jj^\prime}(\vec{k})$ is one of the outputs from \textsc{statsmodel.api.WLS}.
-\footnote{Actually, \textsc{statsmodel.api.WLS} doesn't quite do the right thing for complex-valued
-weighted least squares problems; in several places it uses a matrix transpose where a matrix
-conjugate transpose should actually be used.  An $N_d$ complex-valued matrix problem can be
-reformulated as a $2 N_d$ real-valued matrix problem, however, which lets
-\textsc{statsmodels.api.WLS} still be useful with a bit of extra work translating the problem.}
+Fortunately, $\Sigma_{jj^\prime}(\vec{k})$ is analytically computable for weighted least squares
+problems.
 
 This $\Sigma_{jj^\prime}(\vec{k})$ can then be transformed alongside the $\tilde{a}_j(\vec{k})$ to
 effect shears, rotations, dilations, etc., the same way that noise is transformed in existing
 \textsc{GalSim} routines.
 
-Finally, the model for creating a (Fourier-domain) output image $\tilde{O}(\vec{k})$, convolving by
-an output chromatic PSF $\tilde{\Pi}^\mathrm{out}(\vec{k}, \lambda)$ and drawing through an output
-filter with transmission $T^\mathrm{out}(\lambda)$, is
+Finally, the model for creating a (Fourier-domain) output image $\tilde{I}^\mathrm{out}(\vec{k})$,
+convolving by an output chromatic PSF $\tilde{\Pi}^\mathrm{out}(\vec{k}, \lambda)$ and drawing
+through an output filter with transmission $T^\mathrm{out}(\lambda)$, is
 
 \begin{align}
-    \tilde{O}(\vec{k})
+    \tilde{I}^\mathrm{out}(\vec{k})
     &= \int T^\mathrm{out}(\lambda) \tilde{\Pi}^\mathrm{out}(\vec{k}, \lambda) \tilde{f}(\vec{k}, \lambda) \dif{\lambda} \\
     &= \int T^\mathrm{out}(\lambda) \tilde{\Pi}^\mathrm{out}(\vec{k}, \lambda) \sum_j S_j(\lambda) \tilde{a}_j(\vec{k}) \dif{\lambda} \\
     &= \sum_j \tilde{\Pi}_j^\mathrm{out, eff}(\vec{k}) \tilde{a}_j(\vec{k})
