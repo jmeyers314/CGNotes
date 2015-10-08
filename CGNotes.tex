@@ -5,6 +5,7 @@
 %\usepackage{color}
 \usepackage{graphicx}
 \usepackage{amsmath}
+\usepackage{amsfonts}
 \usepackage{mathabx}
 \usepackage{commath}
 
@@ -24,7 +25,7 @@
 
 \title{Color Gradients Notes}
 \author{Josh Meyers}
-\date{August 2015}
+\date{October 2015}
 
 \begin{document}
 
@@ -155,7 +156,7 @@ from the origin, then the variance of different Fourier modes is not constant, b
 the noise power spectrum, which is the Fourier transform of the noise covariance function:
 
 \begin{equation}
-  P_i(\vec{k}) = \int \xi_i(\Delta \vec{x}) e^{-i \vec{k}\cdot\Delta\vec{x}}.
+  P_i(\vec{k}) = \int \xi_i(\Delta \vec{x}) e^{-2 \pi i \vec{k}\cdot\Delta\vec{x}}.
 \end{equation}
 
 Due to assumed translation invariance of the noise (though note that we do not assume isotropy), the
@@ -176,7 +177,22 @@ question:
 \end{equation}
 
 This is essentially the same weighted least squares problem as in the uncorrelated noise case -- the
-only difference being that the weights now depend on $\vec{k}$.
+only difference being that the weights now depend on $\vec{k}$.  Written in matrix notation, the
+solution for a particular $\vec{k}$ mode is:
+
+\begin{equation}
+    \tilde{a} = \left(\tilde{\Pi}^{\mathrm{eff}, \dagger} W \tilde{\Pi}^\mathrm{eff} \right)^{-1} \tilde{\Pi}^{\mathrm{eff}, \dagger} W \tilde{I}
+\end{equation}
+
+where
+\begin{equation}
+    W_{ij} = \delta_{ij}/\sqrt{P_i}.
+\end{equation}
+
+The covariance matrix for the elements of $\tilde{a}$ is given by
+\begin{equation}
+    \Sigma = \left(\tilde{\Pi}^{\mathrm{eff}, \dagger} W \tilde{\Pi}^\mathrm{eff} \right)^{-1}.
+\end{equation}
 
 \section{Propagating the noise covariance}
 
@@ -230,5 +246,92 @@ errors formula:
 
 This power spectrum can then be used in the existing correlated noise whitening and symmetrizing
 GalSim routines.
+
+\section{Implementation notes}
+
+\textsc{GalSim} uses the methodology developed by Bernstein \& Gruen (2013) to interpolate
+discretely sampled surface brightness profiles in real and Fourier space.  Here we investigate the
+impact of this interpolation on the Wiener-Khinchin theorem, which relates the real-space
+autocorrelation function to the Fourier-space power spectrum.
+
+The discrete version of the Wiener-Khinchin theorem is derived as follows.  We are interested in
+the (co)-variance of the Discrete Fourier Transform amplitudes of some discrete real space samples
+with discrete auto-covariance function $\xi\left[r\right]$ (we follow the convention of
+Rowe++14 in using square brackets to indicate the arguments of a discretly sampled function, and
+reserve parentheses to indicate arguments of continuous objects).  Note that since we're using DFTs,
+$\xi$ is implicitly periodic: $\xi\left[r\right] = \xi\left[r+N\right]$.
+
+The 1D DFT of an N-point sampled function is:
+
+\begin{equation}
+    \tilde{b}_k = \sum_{j=-N/2}^{N/2-1} b_j e^{-2 \pi i j k / N}.
+\end{equation}
+
+% with inverse transform
+%
+% \begin{equation}
+%     b_j = \frac{1}{N}\sum_{k=-N/2}^{N/2-1} \tilde{b}_k e^{2 \pi i j k / N}.
+% \end{equation}
+
+We are interested in the quantity $\left\langle\tilde{b}^*_k \tilde{b}_{k^\prime}\right\rangle$
+where the angle brackets indicate averaging over noise realizations.
+
+\begin{align}
+    \left\langle\tilde{b}^*_k \tilde{b}_{k^\prime}\right\rangle
+    \annot{Sub in FT definition}
+    &= \left\langle\sum_{j=-N/2}^{N/2-1} b_j e^{+2 \pi i j k / N} \sum_{j^\prime=-N/2}^{N/2-1} b_{j^\prime} e^{-2 \pi i j^\prime k^\prime / N}\right\rangle \\
+    \annot{Interchange expectation and summation}
+    &= \sum_{j=-N/2}^{N/2-1} \sum_{j^\prime=-N/2}^{N/2-1} \left\langle b_j b_{j^\prime} \right\rangle e^{2 \pi i (jk - j^\prime k^\prime)/N} \\
+    \annot{$\xi\left[r\right]$ definition}
+    &= \sum_{j=-N/2}^{N/2-1} \sum_{j^\prime=-N/2}^{N/2-1} \xi\left[j-j^\prime\right] e^{2 \pi i (jk - j^\prime k^\prime)/N} \\
+    \annot{change variables $r=j^\prime-j$}
+    &= \sum_{j=-N/2}^{N/2-1} \sum_{r=-N/2-j}^{N/2-1-j} \xi\left[r\right] e^{2 \pi i (jk - (r+j) k^\prime)/N} \\
+    \annot{simplify using periodicty of $\xi$ and $\exp$}
+    &= \sum_{j=-N/2}^{N/2-1} \sum_{r=-N/2}^{N/2-1} \xi\left[r\right] e^{-2 \pi i r k^\prime/N} e^{2 \pi i j (k-k^\prime)/N} \\
+    \annot{definition of $P\left[k\right]$}
+    &= P[k^\prime] \sum_{j=-N/2}^{N/2-1} e^{2 \pi i j (k-k^\prime)/N} \\
+    \annot{$e^{2 \pi i j (k-k^\prime)/N}$ evenly samples unit circle unless $k-k^\prime \in N\mathbb{Z}$...}
+    &= N P[k^\prime] \sum_{N=0}^\infty\delta^{k+N}_{k^\prime} \\
+    \annot{...but we really only care about $k \in \left[-N/2, N/2-1 \right]$ }
+    &= N P[k^\prime] \delta^{k}_{k^\prime}.
+\end{align}
+
+Now we try the same thing using the Bernstein \& Gruen continuously interpolated Fourier transform.
+Recall their result:
+
+\begin{align}
+    \tilde{F}(u)
+    &= \int{F(x) e^{-2 \pi i u x} \dif{x}} \\
+    &\approx \tilde{K}_x(u) \sum_{k=-N/2}^{N/2-1}\tilde{b}_k K_u(u-k/N)
+\end{align}
+
+where $K_x$ is an asserted real-space interpolant, $\tilde{K}_x$ is its Fourier transform,
+and $K_u$ is an asserted Fourier-space interpolant.  Note that the final equality is exact if and
+only if
+
+\begin{equation}
+    K_u(v) = e^{i \pi v} \frac{\mathrm{sinc}\, N v}{\mathrm{sinc}\, v}.
+\end{equation}
+
+We are interested in the (co)-variance of Fourier amplitudes:
+
+\begin{align}
+    \left\langle \tilde{F}^*(u) \tilde{F}(u^\prime)\right\rangle
+    \annot{Sub in GalSim approximate FT definition}
+    &= \left\langle \tilde{K}_x^*(u) \sum_{k=-N/2}^{N/2-1}\tilde{b}_k^* K_u^*(u-k/N) \tilde{K}_x(u^\prime) \sum_{k^\prime=-N/2}^{N/2-1}\tilde{b}_{k^\prime} K_u(u^\prime-k^\prime/N)  \right\rangle \\
+    \annot{Rearrange}
+    &= \tilde{K}_x^*(u) \tilde{K}_x(u^\prime) \sum_{k=-N/2}^{N/2-1} \sum_{k^\prime=-N/2}^{N/2-1} K_u^*(u-k/N) K_u(u^\prime-k^\prime/N) \left\langle \tilde{b}_k^* \tilde{b}_{k^\prime} \right\rangle \\
+    \annot{definition of $P\left[k\right]$}
+    &= \tilde{K}_x^*(u) \tilde{K}_x(u^\prime) \sum_{k=-N/2}^{N/2-1} \sum_{k^\prime=-N/2}^{N/2-1} K_u^*(u-k/N) K_u(u^\prime-k^\prime/N) N P[k^\prime]\delta_{k^\prime}^k \\
+    \annot{sum over Kronecker $\delta$}
+    &= N \tilde{K}_x^*(u) \tilde{K}_x(u^\prime) \sum_{k=-N/2}^{N/2-1} K_u^*(u-k/N) K_u(u^\prime-k/N) P[k]
+\end{align}
+
+This is as far as I've been able to push (ran out of $\delta$ functions!).  Assuming there are no
+further simplifications, one implication is that Fourier amplitudes of an interpolated noise image
+are not uncorrelated.  Equivalently, the continuous auto-covariance function of interpolated
+discretely stationary noise is not itself stationary.  This makes some intuitive sense, I think.
+For example, the variance of interpolated points seems like it should always be less than the
+variance of the input samples, implying that the continuously regarded noise is not stationary.
 
 \end{document}
